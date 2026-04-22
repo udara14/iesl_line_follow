@@ -1,0 +1,58 @@
+We are developing a Arduino line following 2 wheel car for a competition.
+I have given the line follow map, image of the car, and working line follow code, and proximity sensor code.
+
+# the car
+the car has 5 digital ir sensors each 2cm apart.
+black detect as 0 and white as 1.
+it has VL53L0X Time-of-Flight (ToF) proximity sensor for detecting cardboard cubes.
+
+
+# The image shows the line path given by the organizers. 
+line width 2cm. 
+black square size 10x10cm.
+dash line length of 30cm has single dash 2cm long with gap 2cm. 
+
+# about current working line follow code:
+currently only follow main path not 90 degree turns.
+not behave properly in charging area with double brackets.
+does not start and get to the line when place on the begin bottom left black square.
+does not handle cardboard.
+does not stop at the end black square.
+
+
+# instructions for line following
+
+car start on the bottom left black square all ir sensors on the black square. 
+
+it has only 3, 90 degree branches to left or right. car should take all 3 branches in order.
+in each branch, after 10cm there will be a dashed or straight line. 
+5x5x5cm cardboard cube has placed just after the dashed or straight line and 10cm before the black squares.
+
+case 1
+If the line before the cube is dashed, the robot must:
+● Push the cube
+● Place it fully inside the black square
+After pushing:
+● The robot must return to the previous T-junction
+● Then continue through the remaining path
+
+case 2
+If the line before the cube is solid, the robot must:
+● Avoid the cube without any physical contact and turn back
+After turning back:
+● The robot must return to the previous junction
+● Then continue through the remaining path
+
+
+# charging area with double Bracket Lines
+
+- charging area has line path brake distance of 30 cm.car should go this space with 20% speed.
+- Bracket-shaped lines located on the sides of the charging bay must not be used for line-following.
+- These lines are intended only as triggers. For instance, if a corner IR sensor detects a bracket line, the robot may use that input to make minor directional adjustments.
+- However, if the robot begins to actively follow the bracket line, it will be considered incorrect behavior. 
+
+
+# deliverables
+Give me the complete Arduino code With serial monitor logs for debugging.
+make the code simpler for 15 year old student.
+If you need more information ask me. 
