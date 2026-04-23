@@ -618,11 +618,11 @@ void driveTime(int L, int R, int ms) {
   motorStop();
 }
 
-// --- Read distance from ToF sensor (mm). Returns -1 if out of range. ---
+// --- Read distance from ToF sensor (mm). Returns -1 if out of range or timeout. ---
 int readTof() {
-  //VL53L0X_RangingMeasurementData_t m;
-  // tof.readRangeContinuousMillimeters();
-  return (tof.readRangeContinuousMillimeters() < 100) ? (int)tof.readRangeContinuousMillimeters() : -1;
+  int dist = tof.readRangeContinuousMillimeters();
+  if (tof.timeoutOccurred()) return -1;
+  return dist;
 }
 
 // --- Change to a new state and print it to Serial Monitor ---
