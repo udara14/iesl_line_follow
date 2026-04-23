@@ -1,5 +1,5 @@
 // ============================================================
-//  LINE FOLLOWING COMPETITION CAR 
+//  LINE FOLLOWING COMPETITION CAR
 //  version 1.0
 //
 //  YOUR SETTINGS:
@@ -28,60 +28,54 @@
 // ============================================================
 
 #include <Wire.h>
-#include <VL53L0X.h>
+#include <VL53L0X.h>  //VL53L0X by Pololu library
 //#include <Adafruit_VL53L0X.h>
 
-// ============================================================
-//  PIN DEFINITIONS  (same as your original code)
-// ============================================================
-#define LM1  5    // Left  motor pin 1 (forward)
-#define LM2  6    // Left  motor pin 2 (backward)
-#define RM1  9    // Right motor pin 1
-#define RM2  10   // Right motor pin 2
+#define LM1 5   // Left  motor pin 1 (forward)
+#define LM2 6   // Left  motor pin 2 (backward)
+#define RM1 9   // Right motor pin 1
+#define RM2 10  // Right motor pin 2
 
-#define S1   4    // IR sensor — far LEFT
-#define S2   3    // IR sensor — center-left
-#define S3   2    // IR sensor — CENTER
-#define S4   7    // IR sensor — center-right
-#define S5   8    // IR sensor — far RIGHT
+#define S1 4  // IR sensor — far LEFT
+#define S2 3  // IR sensor — center-left
+#define S3 2  // IR sensor — CENTER
+#define S4 7  // IR sensor — center-right
+#define S5 8  // IR sensor — far RIGHT
 
-#define XSHUT_PIN 11   // VL53L0X hard-reset pin
+#define XSHUT_PIN 11  // VL53L0X hard-reset pin
 
-// ============================================================
-//  TUNABLE NUMBERS — change these while testing!
-// ============================================================
-
+//  TUNE PARAMETERS
 // --- Motor speeds (0 to 255) ---
-#define BASE_SPEED      120   // Normal driving speed
-#define SLOW_SPEED       70   // Careful zones (near junctions / cubes)
-#define TURN_SPEED      110   // Spinning on the spot for 90 degree turns
+#define BASE_SPEED 120  // Normal driving speed
+#define SLOW_SPEED 70   // Careful zones (near junctions / cubes)
+#define TURN_SPEED 110  // Spinning on the spot for 90 degree turns
 
 // --- PID line following gains ---
-#define KP               25   // How hard to correct left/right (lower = smoother)
-#define KD               15   // Reduces wobble (raise if car oscillates)
+#define KP 25  // How hard to correct left/right (lower = smoother)
+#define KD 15  // Reduces wobble (raise if car oscillates)
 
 // --- ToF distance sensor ---
 // Sensor is 2cm from the front of the car.
 // We want to detect the cube when it is about 7–9cm ahead.
-#define CUBE_DETECT_MM   90   // Stop approach when distance < 90mm (9cm)
+#define CUBE_DETECT_MM 90  // Stop approach when distance < 90mm (9cm)
 
 // --- Timing constants (all in milliseconds) ---
 // These are distance estimates based on time. Measure on the real floor and tune!
-#define CROSS_JUNCTION_MS      250  // Creep forward to centre on T-junction
-#define BRANCH_TRAVEL_MS       600  // Travel ~10cm down branch before scanning
-#define SCAN_DURATION_MS      1000  // Time spent crawling to detect dashed/solid
-#define PUSH_FORWARD_MS        900  // Push cube into square (~15cm forward)
-#define PUSH_REVERSE_MS       1050  // Reverse back out (a little extra to clear cube)
-#define AVOID_BACKUP_MS        400  // Back up before U-turn (solid line case)
-#define UTURN_MS               850  // Spin duration for 180 degree U-turn — TUNE THIS!
-#define CHARGE_ENTER_MS        500  // Drive time to get fully inside the charging bay
-#define CHARGE_WAIT_MS        5500  // Stay inside 5.5 seconds (rules say 5 minimum)
+#define CROSS_JUNCTION_MS 250       // Creep forward to centre on T-junction
+#define BRANCH_TRAVEL_MS 600        // Travel ~10cm down branch before scanning
+#define SCAN_DURATION_MS 1000       // Time spent crawling to detect dashed/solid
+#define PUSH_FORWARD_MS 900         // Push cube into square (~15cm forward)
+#define PUSH_REVERSE_MS 1050        // Reverse back out (a little extra to clear cube)
+#define AVOID_BACKUP_MS 400         // Back up before U-turn (solid line case)
+#define UTURN_MS 850                // Spin duration for 180 degree U-turn — TUNE THIS!
+#define CHARGE_ENTER_MS 500         // Drive time to get fully inside the charging bay
+#define CHARGE_WAIT_MS 5500         // Stay inside 5.5 seconds (rules say 5 minimum)
 #define CHARGE_EXIT_SEARCH_MS 2500  // Max time looking for exit line after charging
 
 // --- Dashed line detection ---
 // A dashed line causes several black->white->black sensor flips as the car moves.
 // A solid line stays black the whole time (0 flips).
-#define DASHED_FLIP_THRESHOLD   4   // 4 or more transitions = dashed line
+#define DASHED_FLIP_THRESHOLD 4  // 4 or more transitions = dashed line
 
 // ============================================================
 //  STATE MACHINE — the "chapters" of the car's journey
@@ -107,16 +101,16 @@ State currentState = START;
 // ============================================================
 //  GLOBAL VARIABLES
 // ============================================================
-int s1, s2, s3, s4, s5;   // Sensor readings: 0 = black (line), 1 = white
+int s1, s2, s3, s4, s5;  // Sensor readings: 0 = black (line), 1 = white
 
-int pidError     = 0;
+int pidError = 0;
 int lastPidError = 0;
 
-int  branchCount  = 0;     // Number of branches completed so far (0 to 3)
-bool turnLeft     = false; // Which way to turn at the current junction
-bool isDashedLine = false; // Was the line before the cube dashed?
+int branchCount = 0;        // Number of branches completed so far (0 to 3)
+bool turnLeft = false;      // Which way to turn at the current junction
+bool isDashedLine = false;  // Was the line before the cube dashed?
 
-unsigned long stateStartTime = 0;   // Time when current state began
+unsigned long stateStartTime = 0;  // Time when current state began
 
 //Adafruit_VL53L0X tof = Adafruit_VL53L0X();  // ToF sensor object
 VL53L0X tof;
@@ -130,12 +124,17 @@ void setup() {
   Serial.println("==============================");
 
   // Motor output pins
-  pinMode(LM1, OUTPUT);  pinMode(LM2, OUTPUT);
-  pinMode(RM1, OUTPUT);  pinMode(RM2, OUTPUT);
+  pinMode(LM1, OUTPUT);
+  pinMode(LM2, OUTPUT);
+  pinMode(RM1, OUTPUT);
+  pinMode(RM2, OUTPUT);
 
   // IR sensor input pins
-  pinMode(S1, INPUT);  pinMode(S2, INPUT);  pinMode(S3, INPUT);
-  pinMode(S4, INPUT);  pinMode(S5, INPUT);
+  pinMode(S1, INPUT);
+  pinMode(S2, INPUT);
+  pinMode(S3, INPUT);
+  pinMode(S4, INPUT);
+  pinMode(S5, INPUT);
 
   // // Hard-reset then start the ToF sensor
   // pinMode(XSHUT_PIN, OUTPUT);
@@ -150,11 +149,10 @@ void setup() {
   // }
   // Serial.println("VL53L0X sensor OK");
 
-// distance sensor
+  // distance sensor
   Wire.begin();
   tof.setTimeout(500);
-  if (!tof.init())
-  {
+  if (!tof.init()) {
     Serial.println("Failed to detect and initialize tof!");
     while (1) {}
   }
@@ -179,19 +177,19 @@ void loop() {
   readSensors();  // Always read sensors first every loop
 
   switch (currentState) {
-    case START:              doStart();            break;
-    case FOLLOW_LINE:        doFollowLine();       break;
-    case APPROACH_JUNCTION:  doApproachJunction(); break;
-    case TURNING:            doTurning();          break;
-    case BRANCH_FOLLOW:      doBranchFollow();     break;
-    case SCAN_LINE_TYPE:     doScanLineType();     break;
-    case APPROACH_CUBE:      doApproachCube();     break;
-    case PUSH_CUBE:          doPushCube();         break;
-    case AVOID_CUBE:         doAvoidCube();        break;
+    case START: doStart(); break;
+    case FOLLOW_LINE: doFollowLine(); break;
+    case APPROACH_JUNCTION: doApproachJunction(); break;
+    case TURNING: doTurning(); break;
+    case BRANCH_FOLLOW: doBranchFollow(); break;
+    case SCAN_LINE_TYPE: doScanLineType(); break;
+    case APPROACH_CUBE: doApproachCube(); break;
+    case PUSH_CUBE: doPushCube(); break;
+    case AVOID_CUBE: doAvoidCube(); break;
     case RETURN_TO_JUNCTION: doReturnToJunction(); break;
-    case REJOIN_MAIN:        doRejoinMain();       break;
-    case CHARGING:           doCharging();         break;
-    case DONE:               doDone();             break;
+    case REJOIN_MAIN: doRejoinMain(); break;
+    case CHARGING: doCharging(); break;
+    case DONE: doDone(); break;
   }
 }
 
@@ -227,7 +225,7 @@ void doStart() {
 void doFollowLine() {
 
   // --- End square check (all 5 black, all branches and charging done) ---
-  bool allBlack = (s1==0 && s2==0 && s3==0 && s4==0 && s5==0);
+  bool allBlack = (s1 == 0 && s2 == 0 && s3 == 0 && s4 == 0 && s5 == 0);
   if (allBlack && branchCount >= 3) {
     Serial.println("[FOLLOW] All sensors black = END SQUARE. Finished!");
     motorStop();
@@ -237,7 +235,7 @@ void doFollowLine() {
   }
 
   // --- T-junction check (outer sensors both black, still have branches left) ---
-  bool tJunction = (s1==0 && s5==0 && branchCount < 3);
+  bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
   if (tJunction) {
     Serial.print("[FOLLOW] T-junction detected! This is branch #");
     Serial.println(branchCount + 1);
@@ -248,7 +246,7 @@ void doFollowLine() {
   }
 
   // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
-  bool noLine = (s1==1 && s2==1 && s3==1 && s4==1 && s5==1);
+  bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
   if (noLine && branchCount >= 3) {
     static unsigned long lineLostAt = 0;
     if (lineLostAt == 0) lineLostAt = millis();
@@ -291,9 +289,9 @@ void doApproachJunction() {
 // ----------------------------------------------------------
 void doTurning() {
   if (turnLeft) {
-    motorDrive(-TURN_SPEED,  TURN_SPEED);  // Spin left
+    motorDrive(-TURN_SPEED, TURN_SPEED);  // Spin left
   } else {
-    motorDrive( TURN_SPEED, -TURN_SPEED);  // Spin right
+    motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
   }
 
   if (s3 == 0) {  // Center sensor found the branch line
@@ -328,7 +326,7 @@ void doBranchFollow() {
 void doScanLineType() {
   Serial.println("[SCAN] Crawling forward and counting sensor flips...");
 
-  int flipCount   = 0;
+  int flipCount = 0;
   int lastReading = digitalRead(S3);
   unsigned long scanEnd = millis() + SCAN_DURATION_MS;
 
@@ -367,7 +365,10 @@ void doApproachCube() {
   if (millis() - lastPrint > 200) {
     Serial.print("[APPROACH] ToF distance: ");
     if (dist < 0) Serial.println("out of range");
-    else { Serial.print(dist); Serial.println(" mm"); }
+    else {
+      Serial.print(dist);
+      Serial.println(" mm");
+    }
     lastPrint = millis();
   }
 
@@ -429,7 +430,7 @@ void doAvoidCube() {
 //  black again (we're back at the wide T-junction crossing).
 // ----------------------------------------------------------
 void doReturnToJunction() {
-  bool atJunction = (s1==0 && s5==0);
+  bool atJunction = (s1 == 0 && s5 == 0);
 
   if (atJunction) {
     Serial.println("[RETURN] Reached junction again!");
@@ -450,9 +451,9 @@ void doReturnToJunction() {
 void doRejoinMain() {
   // Turn OPPOSITE to how we entered the branch
   if (turnLeft) {
-    motorDrive( TURN_SPEED, -TURN_SPEED);  // Turn right to exit
+    motorDrive(TURN_SPEED, -TURN_SPEED);  // Turn right to exit
   } else {
-    motorDrive(-TURN_SPEED,  TURN_SPEED);  // Turn left to exit
+    motorDrive(-TURN_SPEED, TURN_SPEED);  // Turn left to exit
   }
 
   // Wait until center sensor finds the main line (max 1.5 seconds)
@@ -479,8 +480,8 @@ void doRejoinMain() {
 //  Phase 2 — Drive forward until center sensor finds the exit line
 // ----------------------------------------------------------
 void doCharging() {
-  static int  chargePhase = 0;
-  static unsigned long phaseTimer  = 0;
+  static int chargePhase = 0;
+  static unsigned long phaseTimer = 0;
   static unsigned long lastSecPrint = 0;
 
   // --- Phase 0: Enter ---
@@ -490,7 +491,7 @@ void doCharging() {
     driveTime(SLOW_SPEED, SLOW_SPEED, CHARGE_ENTER_MS);
     motorStop();
     chargePhase = 1;
-    phaseTimer  = millis();
+    phaseTimer = millis();
     lastSecPrint = millis();
     Serial.println("[CHARGE] Inside bay. Timer started.");
   }
@@ -510,7 +511,7 @@ void doCharging() {
     if (elapsed >= CHARGE_WAIT_MS) {
       Serial.println("[CHARGE] 5+ seconds done! Exiting bay.");
       chargePhase = 2;
-      phaseTimer  = millis();
+      phaseTimer = millis();
     }
   }
 
@@ -564,14 +565,14 @@ void doPID(int baseSpd) {
 // --- Calculate line error for PID ---
 // Returns: 0 = perfect center, negative = line left, positive = line right
 int getLineError() {
-  if      (s3==0 && s2==1 && s4==1)  return  0;   // Perfect center
-  else if (s3==0 && s2==0 && s4==1)  return -1;   // Slightly left
-  else if (s3==0 && s2==1 && s4==0)  return  1;   // Slightly right
-  else if (s2==0 && s3==1)           return -2;   // Center-left
-  else if (s4==0 && s3==1)           return  2;   // Center-right
-  else if (s1==0 && s2==1)           return -4;   // Far left
-  else if (s5==0 && s4==1)           return  4;   // Far right
-  else                               return lastPidError; // Lost — hold direction
+  if (s3 == 0 && s2 == 1 && s4 == 1) return 0;        // Perfect center
+  else if (s3 == 0 && s2 == 0 && s4 == 1) return -1;  // Slightly left
+  else if (s3 == 0 && s2 == 1 && s4 == 0) return 1;   // Slightly right
+  else if (s2 == 0 && s3 == 1) return -2;             // Center-left
+  else if (s4 == 0 && s3 == 1) return 2;              // Center-right
+  else if (s1 == 0 && s2 == 1) return -4;             // Far left
+  else if (s5 == 0 && s4 == 1) return 4;              // Far right
+  else return lastPidError;                           // Lost — hold direction
 }
 
 // --- Read all 5 IR sensors ---
@@ -589,18 +590,30 @@ void motorDrive(int L, int R) {
   R = constrain(R, -255, 255);
 
   // Left motor
-  if (L >= 0) { analogWrite(LM1,  L); analogWrite(LM2,  0); }
-  else         { analogWrite(LM1,  0); analogWrite(LM2, -L); }
+  if (L >= 0) {
+    analogWrite(LM1, L);
+    analogWrite(LM2, 0);
+  } else {
+    analogWrite(LM1, 0);
+    analogWrite(LM2, -L);
+  }
 
   // Right motor (wiring reversed — same as your original code)
-  if (R >= 0) { analogWrite(RM1,  0); analogWrite(RM2,  R); }
-  else         { analogWrite(RM1, -R); analogWrite(RM2,  0); }
+  if (R >= 0) {
+    analogWrite(RM1, 0);
+    analogWrite(RM2, R);
+  } else {
+    analogWrite(RM1, -R);
+    analogWrite(RM2, 0);
+  }
 }
 
 // --- Stop all motors ---
 void motorStop() {
-  analogWrite(LM1, 0); analogWrite(LM2, 0);
-  analogWrite(RM1, 0); analogWrite(RM2, 0);
+  analogWrite(LM1, 0);
+  analogWrite(LM2, 0);
+  analogWrite(RM1, 0);
+  analogWrite(RM2, 0);
 }
 
 // --- Drive at speed L, R for exactly 'ms' milliseconds then stop ---
@@ -619,7 +632,7 @@ int readTof() {
 
 // --- Change to a new state and print it to Serial Monitor ---
 void enterState(State s) {
-  currentState   = s;
+  currentState = s;
   stateStartTime = millis();
   const char* names[] = {
     "START", "FOLLOW_LINE", "APPROACH_JUNCTION", "TURNING", "BRANCH_FOLLOW",
@@ -637,8 +650,8 @@ void enterState(State s) {
 //   if (branchCount == 1) return false;  // 2nd branch = RIGHT
 //   if (branchCount == 2) return true;   // 3rd branch = LEFT
 bool pickTurnDirection() {
-  int leftHits  = (s1==0 ? 1 : 0) + (s2==0 ? 1 : 0);
-  int rightHits = (s4==0 ? 1 : 0) + (s5==0 ? 1 : 0);
+  int leftHits = (s1 == 0 ? 1 : 0) + (s2 == 0 ? 1 : 0);
+  int rightHits = (s4 == 0 ? 1 : 0) + (s5 == 0 ? 1 : 0);
   return (leftHits > rightHits);  // true = turn left
 }
 
