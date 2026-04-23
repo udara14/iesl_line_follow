@@ -29,7 +29,6 @@
 
 #include <Wire.h>
 #include <VL53L0X.h>  //VL53L0X by Pololu library
-//#include <Adafruit_VL53L0X.h>
 
 #define LM1 5   // Left  motor pin 1 (forward)
 #define LM2 6   // Left  motor pin 2 (backward)
@@ -46,12 +45,12 @@
 
 //  TUNE PARAMETERS
 // --- Motor speeds (0 to 255) ---
-#define BASE_SPEED 120  // Normal driving speed
+#define BASE_SPEED 100  // Normal driving speed
 #define SLOW_SPEED 70   // Careful zones (near junctions / cubes)
-#define TURN_SPEED 110  // Spinning on the spot for 90 degree turns
+#define TURN_SPEED 90  // Spinning on the spot for 90 degree turns
 
 // --- PID line following gains ---
-#define KP 25  // How hard to correct left/right (lower = smoother)
+#define KP 29  // How hard to correct left/right (lower = smoother)
 #define KD 15  // Reduces wobble (raise if car oscillates)
 
 // --- ToF distance sensor ---
@@ -131,18 +130,6 @@ void setup() {
   pinMode(S4, INPUT);
   pinMode(S5, INPUT);
 
-  // // Hard-reset then start the ToF sensor
-  // pinMode(XSHUT_PIN, OUTPUT);
-  // digitalWrite(XSHUT_PIN, LOW);
-  // delay(20);
-  // digitalWrite(XSHUT_PIN, HIGH);
-  // delay(20);
-
-  // if (!tof.begin(0x29)) {
-  //   Serial.println("ERROR: VL53L0X not found! Check wiring.");
-  //   while (true) { motorStop(); delay(500); }  // Halt and flash
-  // }
-  // Serial.println("VL53L0X sensor OK");
 
   // distance sensor
   Wire.begin();
@@ -165,9 +152,6 @@ void setup() {
   Serial.println(F("GO!"));
 }
 
-// ============================================================
-//  MAIN LOOP — runs thousands of times per second
-// ============================================================
 void loop() {
   readSensors();  // Always read sensors first every loop
 
@@ -188,22 +172,15 @@ void loop() {
   }
 }
 
-// ============================================================
-//  STATE HANDLER FUNCTIONS
-// ============================================================
-
-// ----------------------------------------------------------
 //  START
-//  All sensors are on the big black starting square (all read 0).
-//  Drive forward slowly until the car leaves the square.
-// ----------------------------------------------------------
+//  move forward until meet the line from black square.
 void doStart() {
-  motorDrive(SLOW_SPEED, SLOW_SPEED);  // Creep forward
+  motorDrive(SLOW_SPEED, SLOW_SPEED);  // go forward
 
-  // When center sensor sees white, we have cleared the square edge
-  if (s3 == 1) {
+  // When both corner sensors sees white, we have cleared the square edge
+  if (s1 == 1 && s5 == 1) {
     Serial.println(F("[START] Left starting square — finding the line..."));
-    driveTime(SLOW_SPEED, SLOW_SPEED, 200);  // Tiny bit more to fully clear
+    driveTime(SLOW_SPEED, SLOW_SPEED, 200);  //  bit more to fully clear
     motorStop();
     delay(100);
     enterState(FOLLOW_LINE);
@@ -219,42 +196,42 @@ void doStart() {
 // ----------------------------------------------------------
 void doFollowLine() {
 
-  // --- End square check (all 5 black, all branches and charging done) ---
-  bool allBlack = (s1 == 0 && s2 == 0 && s3 == 0 && s4 == 0 && s5 == 0);
-  if (allBlack && branchCount >= 3) {
-    Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
-    motorStop();
-    delay(300);
-    enterState(DONE);
-    return;
-  }
+  // // --- End square check (all 5 black, all branches and charging done) ---
+  // bool allBlack = (s1 == 0 && s2 == 0 && s3 == 0 && s4 == 0 && s5 == 0);
+  // if (allBlack && branchCount >= 3) {
+  //   Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
+  //   motorStop();
+  //   delay(300);
+  //   enterState(DONE);
+  //   return;
+  // }
 
-  // --- T-junction check (outer sensors both black, still have branches left) ---
-  bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
-  if (tJunction) {
-    Serial.print(F("[FOLLOW] T-junction detected! This is branch #"));
-    Serial.println(branchCount + 1);
-    motorStop();
-    delay(100);
-    enterState(APPROACH_JUNCTION);
-    return;
-  }
+  // // --- T-junction check (outer sensors both black, still have branches left) ---
+  // bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
+  // if (tJunction) {
+  //   Serial.print(F("[FOLLOW] T-junction detected! This is branch #"));
+  //   Serial.println(branchCount + 1);
+  //   motorStop();
+  //   delay(100);
+  //   enterState(APPROACH_JUNCTION);
+  //   return;
+  // }
 
-  // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
-  bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
-  if (noLine && branchCount >= 3) {
-    static unsigned long lineLostAt = 0;
-    if (lineLostAt == 0) lineLostAt = millis();
-    if (millis() - lineLostAt > 150) {
-      lineLostAt = 0;
-      Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
-      enterState(CHARGING);
-      return;
-    }
-    // Gap too short — keep going straight
-    motorDrive(SLOW_SPEED, SLOW_SPEED);
-    return;
-  }
+  // // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
+  // bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
+  // if (noLine && branchCount >= 3) {
+  //   static unsigned long lineLostAt = 0;
+  //   if (lineLostAt == 0) lineLostAt = millis();
+  //   if (millis() - lineLostAt > 150) {
+  //     lineLostAt = 0;
+  //     Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
+  //     enterState(CHARGING);
+  //     return;
+  //   }
+  //   // Gap too short — keep going straight
+  //   motorDrive(SLOW_SPEED, SLOW_SPEED);
+  //   return;
+  // }
 
   // --- Normal PID line following ---
   doPID(BASE_SPEED);
@@ -545,9 +522,6 @@ void doDone() {
   }
 }
 
-// ============================================================
-//  UTILITY FUNCTIONS
-// ============================================================
 
 // --- PID driving ---
 void doPID(int baseSpd) {
