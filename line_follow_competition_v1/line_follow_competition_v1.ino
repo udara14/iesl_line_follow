@@ -101,27 +101,22 @@ State currentState = START;
 // ============================================================
 //  GLOBAL VARIABLES
 // ============================================================
-int s1, s2, s3, s4, s5;  // Sensor readings: 0 = black (line), 1 = white
+byte s1, s2, s3, s4, s5;  // Sensor readings: 0 = black (line), 1 = white
 
 int pidError = 0;
 int lastPidError = 0;
 
-int branchCount = 0;        // Number of branches completed so far (0 to 3)
+byte branchCount = 0;        // Number of branches completed so far (0 to 3)
 bool turnLeft = false;      // Which way to turn at the current junction
 bool isDashedLine = false;  // Was the line before the cube dashed?
 
 unsigned long stateStartTime = 0;  // Time when current state began
 
-//Adafruit_VL53L0X tof = Adafruit_VL53L0X();  // ToF sensor object
 VL53L0X tof;
-// ============================================================
-//  SETUP — runs once at power-on
-// ============================================================
+
 void setup() {
   Serial.begin(115200);
-  Serial.println("==============================");
-  Serial.println("  COMPETITION CAR STARTING UP");
-  Serial.println("==============================");
+  Serial.println(F(" Starting ................"));
 
   // Motor output pins
   pinMode(LM1, OUTPUT);
@@ -153,7 +148,7 @@ void setup() {
   Wire.begin();
   tof.setTimeout(500);
   if (!tof.init()) {
-    Serial.println("Failed to detect and initialize tof!");
+    Serial.println(F("Failed to detect and initialize tof!"));
     while (1) {}
   }
   // Start continuous back-to-back mode (take readings as
@@ -163,11 +158,11 @@ void setup() {
   tof.startContinuous(50);
 
 
-  Serial.println("Place car on start square. Running in 3 seconds...");
+  Serial.println(F("Place car on start square. Running in 3 seconds..."));
   delay(3000);
 
   enterState(START);
-  Serial.println("GO!");
+  Serial.println(F("GO!"));
 }
 
 // ============================================================
@@ -207,7 +202,7 @@ void doStart() {
 
   // When center sensor sees white, we have cleared the square edge
   if (s3 == 1) {
-    Serial.println("[START] Left starting square — finding the line...");
+    Serial.println(F("[START] Left starting square — finding the line..."));
     driveTime(SLOW_SPEED, SLOW_SPEED, 200);  // Tiny bit more to fully clear
     motorStop();
     delay(100);
@@ -227,7 +222,7 @@ void doFollowLine() {
   // --- End square check (all 5 black, all branches and charging done) ---
   bool allBlack = (s1 == 0 && s2 == 0 && s3 == 0 && s4 == 0 && s5 == 0);
   if (allBlack && branchCount >= 3) {
-    Serial.println("[FOLLOW] All sensors black = END SQUARE. Finished!");
+    Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
     motorStop();
     delay(300);
     enterState(DONE);
@@ -237,7 +232,7 @@ void doFollowLine() {
   // --- T-junction check (outer sensors both black, still have branches left) ---
   bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
   if (tJunction) {
-    Serial.print("[FOLLOW] T-junction detected! This is branch #");
+    Serial.print(F("[FOLLOW] T-junction detected! This is branch #"));
     Serial.println(branchCount + 1);
     motorStop();
     delay(100);
@@ -252,7 +247,7 @@ void doFollowLine() {
     if (lineLostAt == 0) lineLostAt = millis();
     if (millis() - lineLostAt > 150) {
       lineLostAt = 0;
-      Serial.println("[FOLLOW] Line gap detected = CHARGING area!");
+      Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
       enterState(CHARGING);
       return;
     }
@@ -277,8 +272,8 @@ void doApproachJunction() {
     motorStop();
     delay(100);
     turnLeft = pickTurnDirection();
-    Serial.print("[JUNCTION] Turn direction: ");
-    Serial.println(turnLeft ? "LEFT" : "RIGHT");
+    Serial.print(F("[JUNCTION] Turn direction: "));
+    Serial.println(turnLeft ? F("LEFT") : F("RIGHT"));
     enterState(TURNING);
   }
 }
@@ -295,7 +290,7 @@ void doTurning() {
   }
 
   if (s3 == 0) {  // Center sensor found the branch line
-    Serial.println("[TURNING] Found branch line!");
+    Serial.println(F("[TURNING] Found branch line!"));
     motorStop();
     delay(150);
     enterState(BRANCH_FOLLOW);
@@ -312,7 +307,7 @@ void doBranchFollow() {
   } else {
     motorStop();
     delay(100);
-    Serial.println("[BRANCH] ~10cm done — scanning line type...");
+    Serial.println(F("[BRANCH] ~10cm done — scanning line type..."));
     enterState(SCAN_LINE_TYPE);
   }
 }
@@ -324,7 +319,7 @@ void doBranchFollow() {
 //  Dashed = many flips. Solid = zero or very few flips.
 // ----------------------------------------------------------
 void doScanLineType() {
-  Serial.println("[SCAN] Crawling forward and counting sensor flips...");
+  Serial.println(F("[SCAN] Crawling forward and counting sensor flips..."));
 
   int flipCount = 0;
   int lastReading = digitalRead(S3);
@@ -344,10 +339,10 @@ void doScanLineType() {
 
   isDashedLine = (flipCount >= DASHED_FLIP_THRESHOLD);
 
-  Serial.print("[SCAN] Flips: ");
+  Serial.print(F("[SCAN] Flips: "));
   Serial.print(flipCount);
-  Serial.print("  =>  ");
-  Serial.println(isDashedLine ? "DASHED line (will PUSH cube)" : "SOLID line (will AVOID cube)");
+  Serial.print(F("  =>  "));
+  Serial.println(isDashedLine ? F("DASHED line (will PUSH cube)") : F("SOLID line (will AVOID cube)"));
 
   enterState(APPROACH_CUBE);
 }
@@ -363,17 +358,17 @@ void doApproachCube() {
   // Print distance to Serial every ~200ms so student can monitor
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 200) {
-    Serial.print("[APPROACH] ToF distance: ");
-    if (dist < 0) Serial.println("out of range");
+    Serial.print(F("[APPROACH] ToF distance: "));
+    if (dist < 0) Serial.println(F("out of range"));
     else {
       Serial.print(dist);
-      Serial.println(" mm");
+      Serial.println(F(" mm"));
     }
     lastPrint = millis();
   }
 
   if (dist > 0 && dist < CUBE_DETECT_MM) {
-    Serial.println("[APPROACH] Cube detected! Stopping approach.");
+    Serial.println(F("[APPROACH] Cube detected! Stopping approach."));
     motorStop();
     delay(200);
     enterState(isDashedLine ? PUSH_CUBE : AVOID_CUBE);
@@ -389,15 +384,15 @@ void doApproachCube() {
 //  then reverse back to roughly where we started.
 // ----------------------------------------------------------
 void doPushCube() {
-  Serial.println("[PUSH] Pushing cube into square...");
+  Serial.println(F("[PUSH] Pushing cube into square..."));
   driveTime(SLOW_SPEED, SLOW_SPEED, PUSH_FORWARD_MS);
 
-  Serial.println("[PUSH] Reversing out of square...");
+  Serial.println(F("[PUSH] Reversing out of square..."));
   driveTime(-SLOW_SPEED, -SLOW_SPEED, PUSH_REVERSE_MS);
 
   motorStop();
   delay(200);
-  Serial.println("[PUSH] Done. Returning to junction.");
+  Serial.println(F("[PUSH] Done. Returning to junction."));
   enterState(RETURN_TO_JUNCTION);
 }
 
@@ -406,7 +401,7 @@ void doPushCube() {
 //  Do NOT touch the cube. Back up, do a 180 U-turn, return.
 // ----------------------------------------------------------
 void doAvoidCube() {
-  Serial.println("[AVOID] Solid line — must NOT touch cube!");
+  Serial.println(F("[AVOID] Solid line — must NOT touch cube!"));
 
   // Back away from cube first
   driveTime(-SLOW_SPEED, -SLOW_SPEED, AVOID_BACKUP_MS);
@@ -414,13 +409,13 @@ void doAvoidCube() {
   delay(100);
 
   // Spin 180 degrees (U-turn)
-  Serial.println("[AVOID] Doing 180 U-turn...");
+  Serial.println(F("[AVOID] Doing 180 U-turn..."));
   motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
   delay(UTURN_MS);
   motorStop();
   delay(100);
 
-  Serial.println("[AVOID] Done. Returning to junction.");
+  Serial.println(F("[AVOID] Done. Returning to junction."));
   enterState(RETURN_TO_JUNCTION);
 }
 
@@ -433,7 +428,7 @@ void doReturnToJunction() {
   bool atJunction = (s1 == 0 && s5 == 0);
 
   if (atJunction) {
-    Serial.println("[RETURN] Reached junction again!");
+    Serial.println(F("[RETURN] Reached junction again!"));
     motorStop();
     delay(200);
     enterState(REJOIN_MAIN);
@@ -466,7 +461,7 @@ void doRejoinMain() {
   delay(150);
 
   branchCount++;
-  Serial.print("[REJOIN] Back on main path. Branches done: ");
+  Serial.print(F("[REJOIN] Back on main path. Branches done: "));
   Serial.println(branchCount);
 
   enterState(FOLLOW_LINE);
@@ -486,14 +481,14 @@ void doCharging() {
 
   // --- Phase 0: Enter ---
   if (chargePhase == 0) {
-    Serial.println("[CHARGE] Entering charging bay straight...");
+    Serial.println(F("[CHARGE] Entering charging bay straight..."));
     // Drive straight — NO PID correction, ignore bracket lines on sides!
     driveTime(SLOW_SPEED, SLOW_SPEED, CHARGE_ENTER_MS);
     motorStop();
     chargePhase = 1;
     phaseTimer = millis();
     lastSecPrint = millis();
-    Serial.println("[CHARGE] Inside bay. Timer started.");
+    Serial.println(F("[CHARGE] Inside bay. Timer started."));
   }
 
   // --- Phase 1: Wait ---
@@ -502,14 +497,14 @@ void doCharging() {
     unsigned long elapsed = millis() - phaseTimer;
 
     if (millis() - lastSecPrint > 1000) {
-      Serial.print("[CHARGE] Waiting... ");
+      Serial.print(F("[CHARGE] Waiting... "));
       Serial.print(elapsed / 1000);
-      Serial.println(" s elapsed");
+      Serial.println(F(" s elapsed"));
       lastSecPrint = millis();
     }
 
     if (elapsed >= CHARGE_WAIT_MS) {
-      Serial.println("[CHARGE] 5+ seconds done! Exiting bay.");
+      Serial.println(F("[CHARGE] 5+ seconds done! Exiting bay."));
       chargePhase = 2;
       phaseTimer = millis();
     }
@@ -523,13 +518,13 @@ void doCharging() {
     motorDrive(SLOW_SPEED, SLOW_SPEED);
 
     if (s3 == 0) {
-      Serial.println("[CHARGE] Exit line found! Continuing main path.");
+      Serial.println(F("[CHARGE] Exit line found! Continuing main path."));
       motorStop();
       delay(200);
       chargePhase = 0;  // Reset for safety
       enterState(FOLLOW_LINE);
     } else if (millis() - phaseTimer > CHARGE_EXIT_SEARCH_MS) {
-      Serial.println("[CHARGE] WARNING: Exit line not found after 2.5s. Stopping!");
+      Serial.println(F("[CHARGE] WARNING: Exit line not found after 2.5s. Stopping!"));
       motorStop();
       chargePhase = 0;
       enterState(DONE);
@@ -545,7 +540,7 @@ void doDone() {
   motorStop();
   static unsigned long lastMsg = 0;
   if (millis() - lastMsg > 2000) {
-    Serial.println("[DONE] Competition run complete! Car stopped.");
+    Serial.println(F("[DONE] Competition run complete! Car stopped."));
     lastMsg = millis();
   }
 }
@@ -639,7 +634,7 @@ void enterState(State s) {
     "SCAN_LINE_TYPE", "APPROACH_CUBE", "PUSH_CUBE", "AVOID_CUBE",
     "RETURN_TO_JUNCTION", "REJOIN_MAIN", "CHARGING", "DONE"
   };
-  Serial.print(">>> STATE: ");
+  Serial.print(F(">>> STATE: "));
   Serial.println(names[(int)s]);
 }
 
