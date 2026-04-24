@@ -97,9 +97,9 @@ enum State {
 
 State currentState = START;
 
-// ============================================================
+
 //  GLOBAL VARIABLES
-// ============================================================
+
 byte s1, s2, s3, s4, s5;  // Sensor readings: 0 = black (line), 1 = white
 
 int pidError = 0;
