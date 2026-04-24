@@ -17,14 +17,7 @@
 //  HOW THE CODE WORKS (State Machine):
 //  Think of it like a list of tasks. The car does one task at a time.
 //  When it finishes a task it moves to the next one automatically.
-//
-//  Task order:
-//  START → FOLLOW_LINE → APPROACH_JUNCTION → TURNING → BRANCH_FOLLOW
-//       → SCAN_LINE_TYPE → APPROACH_CUBE
-//       → PUSH_CUBE (dashed)  OR  AVOID_CUBE (solid)
-//       → RETURN_TO_JUNCTION → REJOIN_MAIN → FOLLOW_LINE
-//       (repeat for all 3 branches, then)
-//       → CHARGING → FOLLOW_LINE → DONE
+ 
 // ============================================================
 
 #include <Wire.h>
@@ -43,26 +36,23 @@
 
 #define XSHUT_PIN 11  // VL53L0X hard-reset pin
 
-//  TUNE PARAMETERS
-// --- Motor speeds (0 to 255) ---
+//  TUNE PARAMETERS - Motor speeds (0 to 255)
 #define BASE_SPEED 95  // Normal driving speed
-#define SLOW_SPEED 60   // Careful zones (near junctions / cubes)
-#define TURN_SPEED 90  // Spinning on the spot for 90 degree turns
+#define SLOW_SPEED 50  // Careful zones (near junctions / cubes)
+#define TURN_SPEED 45  // Spinning on the spot for 90 degree turns
 
 // --- PID line following gains ---
 #define KP 29  // How hard to correct left/right (lower = smoother)
 #define KD 15  // Reduces wobble (raise if car oscillates)
 
 // --- ToF distance sensor --- 2cm from the front of the car. detect the cube 90mm ahead.
-#define CUBE_DETECT_MM 90 
+#define CUBE_DETECT_MM 90
 
 // --- Timing (milliseconds) --- distance estimates based on time.
-#define CROSS_JUNCTION_MS 500       // go forward to centre branch
-#define TURNING_DURATION 480       // Turning duration for 90 degree
-#define CATCH_LINE_START 300       // go back to catch branch line start
+#define TURNING_DURATION 480  // Turning duration for 90 degree
 
-#define BRANCH_TRAVEL_MS 700        // Travel ~10cm down branch before scanning
-#define SCAN_DURATION_MS 1000       // Time spent crawling to detect dashed/solid
+#define BRANCH_TRAVEL_MS 1500       // Travel ~10cm down branch before scanning
+#define SCAN_DURATION_MS 1200       // Time spent crawling to detect dashed/solid
 #define PUSH_FORWARD_MS 900         // Push cube into square (~15cm forward)
 #define PUSH_REVERSE_MS 1050        // Reverse back out (a little extra to clear cube)
 #define AVOID_BACKUP_MS 400         // Back up before U-turn (solid line case)
@@ -74,11 +64,8 @@
 // --- Dashed line detection ---
 // A dashed line causes several black->white->black sensor flips as the car moves.
 // A solid line stays black the whole time (0 flips).
-#define DASHED_FLIP_THRESHOLD 4  // 4 or more transitions = dashed line
+#define DASHED_FLIP_THRESHOLD 3  // 3 or more transitions = dashed line
 
-// ============================================================
-//  STATE MACHINE — the "chapters" of the car's journey
-// ============================================================
 enum State {
   START,               // Leave the starting square and find the line
   FOLLOW_LINE,         // Normal PID line following
@@ -105,7 +92,7 @@ byte s1, s2, s3, s4, s5;  // Sensor readings: 0 = black (line), 1 = white
 int pidError = 0;
 int lastPidError = 0;
 
-byte branchCount = 0;        // Number of branches completed so far (0 to 3)
+byte branchCount = 0;       // Number of branches completed so far (0 to 3)
 bool turnLeft = false;      // Which way to turn at the current junction
 bool isDashedLine = false;  // Was the line before the cube dashed?
 
@@ -196,10 +183,10 @@ void doStart() {
 // ----------------------------------------------------------
 void doFollowLine() {
 
-   // --- End square check (all atleast 4 black, all branches and charging done) ---
-   bool allBlack = (s2 == 0 && s3 == 0 && s4 == 0) && (s1 == 0 || s5 == 0);
-   bool isLeftBranchDetected = (s1 == 0 && s2 == 0 && s5 == 1 );
-   bool isRightBranchDetected = (s4 == 0 && s5 == 0 && s1 == 1 );
+  // --- End square check (all atleast 4 black, all branches and charging done) ---
+  bool allBlack = (s2 == 0 && s3 == 0 && s4 == 0) && (s1 == 0 || s5 == 0);
+  bool isLeftBranchDetected = (s1 == 0 && s2 == 0 && s5 == 1);
+  bool isRightBranchDetected = (s4 == 0 && s5 == 0 && s1 == 1);
 
   if (allBlack && branchCount > 3) {
     Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
@@ -209,24 +196,24 @@ void doFollowLine() {
     return;
   }
 
-//take left branch
-if (isLeftBranchDetected && branchCount < 3) {
+  //take left branch
+  if (isLeftBranchDetected && branchCount < 3) {
     Serial.print(F("[FOLLOW] Left branch detected! Branch #"));
     branchCount++;
     Serial.println(branchCount);
-    turnLeft = true; // set turn direction for this branch
+    turnLeft = true;  // set turn direction for this branch
     motorStop();
-    delay(100); //100
+    delay(100);  //100
     enterState(APPROACH_JUNCTION);
     return;
   }
 
-//take right branch
+  //take right branch
   if (isRightBranchDetected && branchCount < 3) {
     Serial.print(F("[FOLLOW] Right branch detected! Branch #"));
     branchCount++;
     Serial.println(branchCount);
-    turnLeft = false; // set turn direction for this branch
+    turnLeft = false;  // set turn direction for this branch
     motorStop();
     delay(100);
     enterState(APPROACH_JUNCTION);
@@ -234,11 +221,11 @@ if (isLeftBranchDetected && branchCount < 3) {
   }
 
   //take charging branch
-  if ((isRightBranchDetected || isLeftBranchDetected) && branchCount <=3) {
+  if ((isRightBranchDetected || isLeftBranchDetected) && branchCount <= 3) {
     Serial.print(F("[FOLLOW] Charging branch detected! Branch #"));
     branchCount++;
     Serial.println(branchCount);
-    turnLeft = false; // set turn direction for this branch
+    turnLeft = false;  // set turn direction for this branch
     motorStop();
     delay(100);
     enterState(APPROACH_JUNCTION);
@@ -248,126 +235,137 @@ if (isLeftBranchDetected && branchCount < 3) {
 
 
 
-//   // --- T-junction check (outer sensors both black, still have branches left) ---
-// bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
-// if (tJunction) {
-//     // Determine direction from which side sees the branch
-//     if (s1 == 0 && s2 == 0) turnLeft = true;
-//     else if (s4 == 0 && s5 == 0) turnLeft = false;
-    
-//     Serial.print(F("[FOLLOW] T-junction detected! Branch #"));
-//     Serial.println(branchCount + 1);
-//     motorStop();
-//     delay(100);
-//     enterState(APPROACH_JUNCTION);
-//     return;
-// }
+  //   // --- T-junction check (outer sensors both black, still have branches left) ---
+  // bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
+  // if (tJunction) {
+  //     // Determine direction from which side sees the branch
+  //     if (s1 == 0 && s2 == 0) turnLeft = true;
+  //     else if (s4 == 0 && s5 == 0) turnLeft = false;
 
-//   // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
-//   bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
-//   if (noLine && branchCount >= 3) {
-//     static unsigned long lineLostAt = 0;
-//     if (lineLostAt == 0) lineLostAt = millis();
-//     if (millis() - lineLostAt > 150) {
-//       lineLostAt = 0;
-//       Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
-//       enterState(CHARGING);
-//       return;
-//     }
-//     // Gap too short — keep going straight
-//     motorDrive(SLOW_SPEED, SLOW_SPEED);
-//     return;
-//   }
+  //     Serial.print(F("[FOLLOW] T-junction detected! Branch #"));
+  //     Serial.println(branchCount + 1);
+  //     motorStop();
+  //     delay(100);
+  //     enterState(APPROACH_JUNCTION);
+  //     return;
+  // }
+
+  //   // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
+  //   bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
+  //   if (noLine && branchCount >= 3) {
+  //     static unsigned long lineLostAt = 0;
+  //     if (lineLostAt == 0) lineLostAt = millis();
+  //     if (millis() - lineLostAt > 150) {
+  //       lineLostAt = 0;
+  //       Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
+  //       enterState(CHARGING);
+  //       return;
+  //     }
+  //     // Gap too short — keep going straight
+  //     motorDrive(SLOW_SPEED, SLOW_SPEED);
+  //     return;
+  //   }
 
   // --- Normal PID line following ---
   doPID(BASE_SPEED);
 }
 
 
-//  APPROACH JUNCTION --- go forward for CROSS_JUNCTION_MS to place the car's center exactly over the junction cross-point before turning.
+//  APPROACH JUNCTION --- go forward for CROSS_JUNCTION_MS = xxx to place the car's center exactly over the junction cross-point before turning.
 
 void doApproachJunction() {
-  if (millis() - stateStartTime < CROSS_JUNCTION_MS) {
-    motorDrive(SLOW_SPEED, SLOW_SPEED);
+  if (millis() - stateStartTime < 640) {  // change the timing number
+    doPID(50);                            //speed 0-255
   } else {
     motorStop();
     delay(100);
-    // turnLeft = pickTurnDirection();
     Serial.print(F("[JUNCTION] Turn direction: "));
     Serial.println(turnLeft ? F("LEFT") : F("RIGHT"));
+
+    if (turnLeft) {
+      driveTime(-TURN_SPEED, TURN_SPEED, 500);  // Spin left timing
+    } else {
+      driveTime(TURN_SPEED, -TURN_SPEED, 500);  // Spin right timing
+    }
+
     enterState(TURNING);
+    // enterState(DONE);
   }
 }
 
 //  TURNING --- Spin in place until TURNING_DURATION.
 void doTurning() {
 
-  //   if (turnLeft) {
-  //   motorDrive(-TURN_SPEED, TURN_SPEED);  // Spin left
-  // } else {
-  //   motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
-  // }
-
-  // if (s3 == 0) {  // Center sensor found the branch line
-  //   Serial.println(F("[TURNING] Found branch line!"));
-  //   motorStop();
-  //   delay(150);
-  //   enterState(BRANCH_FOLLOW);
-  //   enterState(DONE);
-  // }
-
-
   if (turnLeft) {
-    driveTime(-TURN_SPEED, TURN_SPEED, TURNING_DURATION);  // Spin left
-    Serial.println(F("[TURNING] left turning complete!"));
-    motorStop();
-    delay(150);
-    driveTime(-TURN_SPEED, -TURN_SPEED, CATCH_LINE_START); 
-    motorStop();
-    delay(150);
-    enterState(BRANCH_FOLLOW);
-    // enterState(DONE);
+    motorDrive(-TURN_SPEED, TURN_SPEED);  // Spin left
   } else {
-    driveTime(TURN_SPEED, -TURN_SPEED, TURNING_DURATION);  // Spin right
-    Serial.println(F("[TURNING] right turning complete!"));
+    motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
+  }
+
+  if (s3 == 0) {  // Center sensor found the branch line
+    Serial.println(F("[TURNING] Found branch line!"));
     motorStop();
     delay(150);
-    driveTime(-TURN_SPEED, -TURN_SPEED, CATCH_LINE_START); //go back to catch line start
-    motorStop();
-    delay(150);
+
+    //extra reverse after turn
+    // driveTime(-55, -55, 200); //go back to catch line start after turn .
+    // motorStop();
+    // delay(150);
+
     enterState(BRANCH_FOLLOW);
     // enterState(DONE);
   }
-} 
+
+
+  // if (turnLeft) {
+  //   driveTime(-TURN_SPEED, TURN_SPEED, TURNING_DURATION);  // Spin left
+  //   Serial.println(F("[TURNING] left turning complete!"));
+  //   motorStop();
+  //   delay(150);
+  //   driveTime(-TURN_SPEED, -TURN_SPEED, 300); //go back to catch line start after turn .
+  //   motorStop();
+  //   delay(150);
+  //   // enterState(BRANCH_FOLLOW);
+  //   enterState(DONE);
+  // } else {
+  //   driveTime(TURN_SPEED, -TURN_SPEED, TURNING_DURATION);  // Spin right
+  //   Serial.println(F("[TURNING] right turning complete!"));
+  //   motorStop();
+  //   delay(150);
+  //   driveTime(-TURN_SPEED, -TURN_SPEED, 300); //go back to catch line start after turn
+  //   motorStop();
+  //   delay(150);
+  //   // enterState(BRANCH_FOLLOW);
+  //   enterState(DONE);
+  // }
+}
 
 
 //  BRANCH FOLLOW
 //  Follow the branch for BRANCH_TRAVEL_MS (~10cm).
 
 void doBranchFollow() {
-  if (millis() - stateStartTime < BRANCH_TRAVEL_MS) {
-    doPID(SLOW_SPEED);
+  if (millis() - stateStartTime < 500) {  // travel timing
+    doPID(40);                            // Slow PID to stay on branch line speed 40
   } else {
     motorStop();
     delay(100);
     Serial.println(F("[BRANCH] ~10cm done — scanning line type..."));
-    // enterState(SCAN_LINE_TYPE);
-     enterState(DONE);
+    enterState(SCAN_LINE_TYPE);
+    //  enterState(DONE);
   }
 }
 
-// ----------------------------------------------------------
 //  SCAN LINE TYPE
-//  Crawl forward for SCAN_DURATION_MS and count how many times
+//  go forward for SCAN_DURATION_MS and count how many times
 //  the center sensor flips between black and white.
 //  Dashed = many flips. Solid = zero or very few flips.
-// ----------------------------------------------------------
 void doScanLineType() {
   Serial.println(F("[SCAN] going forward and counting sensor flips..."));
 
   int flipCount = 0;
   int lastReading = digitalRead(S3);
-  unsigned long scanEnd = millis() + SCAN_DURATION_MS;
+  unsigned long scanEnd = millis() + 1200;
 
   while (millis() < scanEnd) {
     motorDrive(SLOW_SPEED, SLOW_SPEED);
@@ -389,6 +387,7 @@ void doScanLineType() {
   Serial.println(isDashedLine ? F("DASHED line (will PUSH cube)") : F("SOLID line (will AVOID cube)"));
 
   enterState(APPROACH_CUBE);
+  //  enterState(DONE);
 }
 
 //  APPROACH CUBE
@@ -427,15 +426,32 @@ void doApproachCube() {
 // ----------------------------------------------------------
 void doPushCube() {
   Serial.println(F("[PUSH] Pushing cube into square..."));
-  driveTime(SLOW_SPEED, SLOW_SPEED, PUSH_FORWARD_MS);
+  // driveTime(SLOW_SPEED, SLOW_SPEED, 1500); // PUSH_FORWARD_MS
+  bool allBlack = (s2 == 0 && s3 == 0 && s4 == 0) && (s1 == 0 || s5 == 0);
+  if (allBlack) {
+    Serial.println(F("[PUSH] done pushing cube.."));
+    motorStop();
+    delay(300);
 
-  Serial.println(F("[PUSH] Reversing out of square..."));
-  driveTime(-SLOW_SPEED, -SLOW_SPEED, PUSH_REVERSE_MS);
+    // Back away from cube first
+    Serial.println(F("[PUSH] Back away from cube ..."));
+    driveTime(-SLOW_SPEED, -SLOW_SPEED, 1000);  //PUSH_REVERSE_MS
+    motorStop();
+    delay(200);
 
-  motorStop();
-  delay(200);
-  Serial.println(F("[PUSH] Done. Returning to junction."));
-  enterState(RETURN_TO_JUNCTION);
+    // Spin 180 degrees (U-turn)
+    Serial.println(F("[AVOID] Doing 180 U-turn..."));
+    motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
+    delay(1500);//UTURN_MS
+
+    motorStop();
+    delay(100);
+
+    Serial.println(F("[PUSH] Done. Returning to junction."));
+    enterState(RETURN_TO_JUNCTION);
+    return;
+  }
+  doPID(50);
 }
 
 // ----------------------------------------------------------
@@ -446,14 +462,14 @@ void doAvoidCube() {
   Serial.println(F("[AVOID] Solid line — must NOT touch cube!"));
 
   // Back away from cube first
-  driveTime(-SLOW_SPEED, -SLOW_SPEED, AVOID_BACKUP_MS);
+  driveTime(-SLOW_SPEED, -SLOW_SPEED, 1000);
   motorStop();
   delay(100);
 
   // Spin 180 degrees (U-turn)
   Serial.println(F("[AVOID] Doing 180 U-turn..."));
   motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
-  delay(UTURN_MS);
+  delay(1500);                          //UTURN_MS
   motorStop();
   delay(100);
 
@@ -501,7 +517,6 @@ void doRejoinMain() {
   motorStop();
   delay(150);
 
-  branchCount++;
   Serial.print(F("[REJOIN] Back on main path. Branches done: "));
   Serial.println(branchCount);
 
