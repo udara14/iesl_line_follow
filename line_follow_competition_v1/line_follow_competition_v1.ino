@@ -70,6 +70,7 @@
 #define CHARGE_ENTER_MS 500         // Drive time to get fully inside the charging bay
 #define CHARGE_WAIT_MS 5500         // Stay inside 5.5 seconds (rules say 5 minimum)
 #define CHARGE_EXIT_SEARCH_MS 2500  // Max time looking for exit line after charging
+#define TURNING_DURATION 500  // Turning duration for 90 degree
 
 // --- Dashed line detection ---
 // A dashed line causes several black->white->black sensor flips as the car moves.
@@ -301,23 +302,22 @@ void doApproachJunction() {
   }
 }
 
-//  TURNING
-//  Spin in place until the CENTER sensor (S3) picks up the branch line.
-// ----------------------------------------------------------
+//  TURNING --- Spin in place until TURNING_DURATION.
 void doTurning() {
   if (turnLeft) {
-    motorDrive(-TURN_SPEED, TURN_SPEED);  // Spin left
+    driveTime(-TURN_SPEED, TURN_SPEED, TURNING_DURATION);  // Spin left
+    Serial.println(F("[TURNING] left turning complete!"));
+    motorStop();
+    delay(150);
+    enterState(BRANCH_FOLLOW);
   } else {
-    motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
-  }
-
-  if (s3 == 0) {  // Center sensor found the branch line
-    Serial.println(F("[TURNING] Found branch line!"));
+    driveTime(TURN_SPEED, -TURN_SPEED, TURNING_DURATION);  // Spin right
+    Serial.println(F("[TURNING] right turning complete!"));
     motorStop();
     delay(150);
     enterState(BRANCH_FOLLOW);
   }
-}
+} 
 
 // ----------------------------------------------------------
 //  BRANCH FOLLOW
