@@ -58,9 +58,10 @@
 
 // --- Timing (milliseconds) --- distance estimates based on time.
 #define CROSS_JUNCTION_MS 500       // go forward to centre branch
-#define TURNING_DURATION 500       // Turning duration for 90 degree
+#define TURNING_DURATION 480       // Turning duration for 90 degree
+#define CATCH_LINE_START 300       // go back to catch branch line start
 
-#define BRANCH_TRAVEL_MS 500        // Travel ~10cm down branch before scanning
+#define BRANCH_TRAVEL_MS 700        // Travel ~10cm down branch before scanning
 #define SCAN_DURATION_MS 1000       // Time spent crawling to detect dashed/solid
 #define PUSH_FORWARD_MS 900         // Push cube into square (~15cm forward)
 #define PUSH_REVERSE_MS 1050        // Reverse back out (a little extra to clear cube)
@@ -321,11 +322,17 @@ void doTurning() {
     Serial.println(F("[TURNING] left turning complete!"));
     motorStop();
     delay(150);
+    driveTime(-TURN_SPEED, -TURN_SPEED, CATCH_LINE_START); 
+    motorStop();
+    delay(150);
     enterState(BRANCH_FOLLOW);
     // enterState(DONE);
   } else {
     driveTime(TURN_SPEED, -TURN_SPEED, TURNING_DURATION);  // Spin right
     Serial.println(F("[TURNING] right turning complete!"));
+    motorStop();
+    delay(150);
+    driveTime(-TURN_SPEED, -TURN_SPEED, CATCH_LINE_START); //go back to catch line start
     motorStop();
     delay(150);
     enterState(BRANCH_FOLLOW);
@@ -344,7 +351,8 @@ void doBranchFollow() {
     motorStop();
     delay(100);
     Serial.println(F("[BRANCH] ~10cm done — scanning line type..."));
-    enterState(SCAN_LINE_TYPE);
+    // enterState(SCAN_LINE_TYPE);
+     enterState(DONE);
   }
 }
 
