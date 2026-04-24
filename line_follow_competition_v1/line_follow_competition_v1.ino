@@ -46,22 +46,21 @@
 //  TUNE PARAMETERS
 // --- Motor speeds (0 to 255) ---
 #define BASE_SPEED 95  // Normal driving speed
-#define SLOW_SPEED 70   // Careful zones (near junctions / cubes)
+#define SLOW_SPEED 60   // Careful zones (near junctions / cubes)
 #define TURN_SPEED 90  // Spinning on the spot for 90 degree turns
 
 // --- PID line following gains ---
 #define KP 29  // How hard to correct left/right (lower = smoother)
 #define KD 15  // Reduces wobble (raise if car oscillates)
 
-// --- ToF distance sensor ---
-// Sensor is 2cm from the front of the car.
-// We want to detect the cube when it is about 7–9cm ahead.
-#define CUBE_DETECT_MM 90  // Stop approach when distance < 90mm (9cm)
+// --- ToF distance sensor --- 2cm from the front of the car. detect the cube 90mm ahead.
+#define CUBE_DETECT_MM 90 
 
-// --- Timing constants (all in milliseconds) ---
-// These are distance estimates based on time. Measure on the real floor and tune!
-#define CROSS_JUNCTION_MS 250       // Creep forward to centre on T-junction
-#define BRANCH_TRAVEL_MS 600        // Travel ~10cm down branch before scanning
+// --- Timing (milliseconds) --- distance estimates based on time.
+#define CROSS_JUNCTION_MS 500       // go forward to centre branch
+#define TURNING_DURATION 500       // Turning duration for 90 degree
+
+#define BRANCH_TRAVEL_MS 500        // Travel ~10cm down branch before scanning
 #define SCAN_DURATION_MS 1000       // Time spent crawling to detect dashed/solid
 #define PUSH_FORWARD_MS 900         // Push cube into square (~15cm forward)
 #define PUSH_REVERSE_MS 1050        // Reverse back out (a little extra to clear cube)
@@ -70,7 +69,6 @@
 #define CHARGE_ENTER_MS 500         // Drive time to get fully inside the charging bay
 #define CHARGE_WAIT_MS 5500         // Stay inside 5.5 seconds (rules say 5 minimum)
 #define CHARGE_EXIT_SEARCH_MS 2500  // Max time looking for exit line after charging
-#define TURNING_DURATION 500  // Turning duration for 90 degree
 
 // --- Dashed line detection ---
 // A dashed line causes several black->white->black sensor flips as the car moves.
@@ -218,7 +216,7 @@ if (isLeftBranchDetected && branchCount < 3) {
     turnLeft = true; // set turn direction for this branch
     motorStop();
     delay(100); //100
-    enterState(TURNING);
+    enterState(APPROACH_JUNCTION);
     return;
   }
 
@@ -230,7 +228,7 @@ if (isLeftBranchDetected && branchCount < 3) {
     turnLeft = false; // set turn direction for this branch
     motorStop();
     delay(100);
-    enterState(TURNING);
+    enterState(APPROACH_JUNCTION);
     return;
   }
 
@@ -242,7 +240,7 @@ if (isLeftBranchDetected && branchCount < 3) {
     turnLeft = false; // set turn direction for this branch
     motorStop();
     delay(100);
-    enterState(TURNING);
+    enterState(APPROACH_JUNCTION);
     return;
   }
 
@@ -284,11 +282,9 @@ if (isLeftBranchDetected && branchCount < 3) {
   doPID(BASE_SPEED);
 }
 
-// ----------------------------------------------------------
-//  APPROACH JUNCTION
-//  Creep forward for CROSS_JUNCTION_MS to place the car's
-//  center exactly over the junction cross-point before turning.
-// ----------------------------------------------------------
+
+//  APPROACH JUNCTION --- go forward for CROSS_JUNCTION_MS to place the car's center exactly over the junction cross-point before turning.
+
 void doApproachJunction() {
   if (millis() - stateStartTime < CROSS_JUNCTION_MS) {
     motorDrive(SLOW_SPEED, SLOW_SPEED);
@@ -304,25 +300,43 @@ void doApproachJunction() {
 
 //  TURNING --- Spin in place until TURNING_DURATION.
 void doTurning() {
+
+  //   if (turnLeft) {
+  //   motorDrive(-TURN_SPEED, TURN_SPEED);  // Spin left
+  // } else {
+  //   motorDrive(TURN_SPEED, -TURN_SPEED);  // Spin right
+  // }
+
+  // if (s3 == 0) {  // Center sensor found the branch line
+  //   Serial.println(F("[TURNING] Found branch line!"));
+  //   motorStop();
+  //   delay(150);
+  //   enterState(BRANCH_FOLLOW);
+  //   enterState(DONE);
+  // }
+
+
   if (turnLeft) {
     driveTime(-TURN_SPEED, TURN_SPEED, TURNING_DURATION);  // Spin left
     Serial.println(F("[TURNING] left turning complete!"));
     motorStop();
     delay(150);
     enterState(BRANCH_FOLLOW);
+    // enterState(DONE);
   } else {
     driveTime(TURN_SPEED, -TURN_SPEED, TURNING_DURATION);  // Spin right
     Serial.println(F("[TURNING] right turning complete!"));
     motorStop();
     delay(150);
     enterState(BRANCH_FOLLOW);
+    // enterState(DONE);
   }
 } 
 
-// ----------------------------------------------------------
+
 //  BRANCH FOLLOW
 //  Follow the branch for BRANCH_TRAVEL_MS (~10cm).
-// ----------------------------------------------------------
+
 void doBranchFollow() {
   if (millis() - stateStartTime < BRANCH_TRAVEL_MS) {
     doPID(SLOW_SPEED);
@@ -341,7 +355,7 @@ void doBranchFollow() {
 //  Dashed = many flips. Solid = zero or very few flips.
 // ----------------------------------------------------------
 void doScanLineType() {
-  Serial.println(F("[SCAN] Crawling forward and counting sensor flips..."));
+  Serial.println(F("[SCAN] going forward and counting sensor flips..."));
 
   int flipCount = 0;
   int lastReading = digitalRead(S3);
@@ -369,15 +383,13 @@ void doScanLineType() {
   enterState(APPROACH_CUBE);
 }
 
-// ----------------------------------------------------------
 //  APPROACH CUBE
-//  Creep forward using PID until the ToF sensor sees the cube
+//  go forward using PID until the ToF sensor sees the cube
 //  closer than CUBE_DETECT_MM.
-// ----------------------------------------------------------
 void doApproachCube() {
   int dist = readTof();
 
-  // Print distance to Serial every ~200ms so student can monitor
+  // Print distance to Serial every ~200ms to monitor
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 200) {
     Serial.print(F("[APPROACH] ToF distance: "));
