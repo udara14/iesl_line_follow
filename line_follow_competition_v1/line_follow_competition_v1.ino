@@ -45,7 +45,7 @@
 
 //  TUNE PARAMETERS
 // --- Motor speeds (0 to 255) ---
-#define BASE_SPEED 100  // Normal driving speed
+#define BASE_SPEED 95  // Normal driving speed
 #define SLOW_SPEED 70   // Careful zones (near junctions / cubes)
 #define TURN_SPEED 90  // Spinning on the spot for 90 degree turns
 
@@ -178,7 +178,7 @@ void doStart() {
   motorDrive(SLOW_SPEED, SLOW_SPEED);  // go forward
 
   // When both corner sensors sees white, we have cleared the square edge
-  if (s1 == 1 && s5 == 1) {
+  if (s1 == 1 || s2 == 1 || s3 == 1 || s4 == 1 || s5 == 1) {
     Serial.println(F("[START] Left starting square — finding the line..."));
     driveTime(SLOW_SPEED, SLOW_SPEED, 200);  //  bit more to fully clear
     motorStop();
@@ -196,42 +196,88 @@ void doStart() {
 // ----------------------------------------------------------
 void doFollowLine() {
 
-  // // --- End square check (all 5 black, all branches and charging done) ---
-  // bool allBlack = (s1 == 0 && s2 == 0 && s3 == 0 && s4 == 0 && s5 == 0);
-  // if (allBlack && branchCount >= 3) {
-  //   Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
-  //   motorStop();
-  //   delay(300);
-  //   enterState(DONE);
-  //   return;
-  // }
+   // --- End square check (all atleast 4 black, all branches and charging done) ---
+   bool allBlack = (s2 == 0 && s3 == 0 && s4 == 0) && (s1 == 0 || s5 == 0);
+   bool isLeftBranchDetected = (s1 == 0 && s2 == 0 && s5 == 1 );
+   bool isRightBranchDetected = (s4 == 0 && s5 == 0 && s1 == 1 );
 
-  // // --- T-junction check (outer sensors both black, still have branches left) ---
-  // bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
-  // if (tJunction) {
-  //   Serial.print(F("[FOLLOW] T-junction detected! This is branch #"));
-  //   Serial.println(branchCount + 1);
-  //   motorStop();
-  //   delay(100);
-  //   enterState(APPROACH_JUNCTION);
-  //   return;
-  // }
+  if (allBlack && branchCount > 3) {
+    Serial.println(F("[FOLLOW] All sensors black = END SQUARE. Finished!"));
+    motorStop();
+    delay(300);
+    enterState(DONE);
+    return;
+  }
 
-  // // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
-  // bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
-  // if (noLine && branchCount >= 3) {
-  //   static unsigned long lineLostAt = 0;
-  //   if (lineLostAt == 0) lineLostAt = millis();
-  //   if (millis() - lineLostAt > 150) {
-  //     lineLostAt = 0;
-  //     Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
-  //     enterState(CHARGING);
-  //     return;
-  //   }
-  //   // Gap too short — keep going straight
-  //   motorDrive(SLOW_SPEED, SLOW_SPEED);
-  //   return;
-  // }
+//take left branch
+if (isLeftBranchDetected && branchCount < 3) {
+    Serial.print(F("[FOLLOW] Left branch detected! Branch #"));
+    branchCount++;
+    Serial.println(branchCount);
+    turnLeft = true; // set turn direction for this branch
+    motorStop();
+    delay(100); //100
+    enterState(TURNING);
+    return;
+  }
+
+//take right branch
+  if (isRightBranchDetected && branchCount < 3) {
+    Serial.print(F("[FOLLOW] Right branch detected! Branch #"));
+    branchCount++;
+    Serial.println(branchCount);
+    turnLeft = false; // set turn direction for this branch
+    motorStop();
+    delay(100);
+    enterState(TURNING);
+    return;
+  }
+
+  //take charging branch
+  if ((isRightBranchDetected || isLeftBranchDetected) && branchCount <=3) {
+    Serial.print(F("[FOLLOW] Charging branch detected! Branch #"));
+    branchCount++;
+    Serial.println(branchCount);
+    turnLeft = false; // set turn direction for this branch
+    motorStop();
+    delay(100);
+    enterState(TURNING);
+    return;
+  }
+
+
+
+
+//   // --- T-junction check (outer sensors both black, still have branches left) ---
+// bool tJunction = (s1 == 0 && s5 == 0 && branchCount < 3);
+// if (tJunction) {
+//     // Determine direction from which side sees the branch
+//     if (s1 == 0 && s2 == 0) turnLeft = true;
+//     else if (s4 == 0 && s5 == 0) turnLeft = false;
+    
+//     Serial.print(F("[FOLLOW] T-junction detected! Branch #"));
+//     Serial.println(branchCount + 1);
+//     motorStop();
+//     delay(100);
+//     enterState(APPROACH_JUNCTION);
+//     return;
+// }
+
+//   // --- Charging bay gap (all sensors white for > 150ms, after 3 branches) ---
+//   bool noLine = (s1 == 1 && s2 == 1 && s3 == 1 && s4 == 1 && s5 == 1);
+//   if (noLine && branchCount >= 3) {
+//     static unsigned long lineLostAt = 0;
+//     if (lineLostAt == 0) lineLostAt = millis();
+//     if (millis() - lineLostAt > 150) {
+//       lineLostAt = 0;
+//       Serial.println(F("[FOLLOW] Line gap detected = CHARGING area!"));
+//       enterState(CHARGING);
+//       return;
+//     }
+//     // Gap too short — keep going straight
+//     motorDrive(SLOW_SPEED, SLOW_SPEED);
+//     return;
+//   }
 
   // --- Normal PID line following ---
   doPID(BASE_SPEED);
@@ -248,14 +294,13 @@ void doApproachJunction() {
   } else {
     motorStop();
     delay(100);
-    turnLeft = pickTurnDirection();
+    // turnLeft = pickTurnDirection();
     Serial.print(F("[JUNCTION] Turn direction: "));
     Serial.println(turnLeft ? F("LEFT") : F("RIGHT"));
     enterState(TURNING);
   }
 }
 
-// ----------------------------------------------------------
 //  TURNING
 //  Spin in place until the CENTER sensor (S3) picks up the branch line.
 // ----------------------------------------------------------
@@ -421,14 +466,13 @@ void doReturnToJunction() {
 //  Count this branch as done, then resume line following.
 // ----------------------------------------------------------
 void doRejoinMain() {
-  // Turn OPPOSITE to how we entered the branch
+  // Turn SAME direction as entry to get back onto main path
   if (turnLeft) {
-    motorDrive(TURN_SPEED, -TURN_SPEED);  // Turn right to exit
-  } else {
     motorDrive(-TURN_SPEED, TURN_SPEED);  // Turn left to exit
+  } else {
+    motorDrive(TURN_SPEED, -TURN_SPEED);  // Turn right to exit
   }
 
-  // Wait until center sensor finds the main line (max 1.5 seconds)
   unsigned long start = millis();
   while (millis() - start < 1500) {
     readSensors();
@@ -618,11 +662,11 @@ void enterState(State s) {
 //   if (branchCount == 0) return false;  // 1st branch = RIGHT
 //   if (branchCount == 1) return false;  // 2nd branch = RIGHT
 //   if (branchCount == 2) return true;   // 3rd branch = LEFT
-bool pickTurnDirection() {
-  int leftHits = (s1 == 0 ? 1 : 0) + (s2 == 0 ? 1 : 0);
-  int rightHits = (s4 == 0 ? 1 : 0) + (s5 == 0 ? 1 : 0);
-  return (leftHits > rightHits);  // true = turn left
-}
+// bool pickTurnDirection() {
+//   int leftHits = (s1 == 0 ? 1 : 0) + (s2 == 0 ? 1 : 0);
+//   int rightHits = (s4 == 0 ? 1 : 0) + (s5 == 0 ? 1 : 0);
+//   return (leftHits > rightHits);  // true = turn left
+// }
 
 // ============================================================
 //  TUNING GUIDE FOR STUDENTS
